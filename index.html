@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PokéTracker & Mapas Ultimate</title>
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22%23ce2211%22/><path d=%22M5,50 A45,45 0 0,0 95,50 Z%22 fill=%22white%22/><rect x=%225%22 y=%2245%22 width=%2290%22 height=%2210%22 fill=%22%23222%22/><circle cx=%2250%22 cy=%2250%22 r=%2245%22 fill=%22none%22 stroke=%22%23222%22 stroke-width=%225%22/><circle cx=%2250%22 cy=%2250%22 r=%2215%22 fill=%22white%22 stroke=%22%23222%22 stroke-width=%225%22/><circle cx=%2250%22 cy=%2250%22 r=%226%22 fill=%22white%22 stroke=%22%23ccc%22 stroke-width=%221%22/></svg>">
+
+    <style>
+        :root {
+            --primary: #ce2211;
+            --bg: #222;
+            --panel: #333;
+            --text: #eee;
+            --accent: #4caf50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 0;
+            color: var(--text);
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* HEADER */
+        header {
+            background-color: var(--primary);
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            z-index: 100;
+        }
+
+        h1 { margin: 0; font-size: 1.3rem; color: white; text-shadow: 1px 1px 2px black; display: flex; align-items: center; gap: 10px; }
+
+        .btn {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: 0.2s;
+        }
+        .btn:hover { background: rgba(0,0,0,0.5); }
+
+        /* TABS */
+        .tabs { display: flex; background: #1a1a1a; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            background: transparent;
+            border: none;
+            color: #777;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            border-bottom: 4px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab-btn:hover { color: #aaa; background: #252525; }
+        .tab-btn.active { color: white; border-bottom: 4px solid var(--primary); background: #2a2a2a; }
+
+        /* CONTROLS */
+        .controls {
+            background: var(--panel);
+            padding: 12px;
+            display: flex;
+            gap: 12px;
+            align-items: center;
+            border-bottom: 1px solid #444;
+            flex-wrap: wrap;
+        }
+
+        select, input[type="text"] {
+            background: #222;
+            color: white;
+            border: 1px solid #555;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        select:focus, input:focus { outline: 2px solid var(--primary); border-color: transparent; }
+
+        .stats { margin-left: auto; font-size: 0.9rem; font-weight: bold; color: #aaa; }
+
+        /* VIEWS */
+        .view { display: none; flex-grow: 1; height: 100%; position: relative; overflow: hidden; }
+        .view.active { display: flex; flex-direction: column; }
+
+        /* POKEDEX GRID */
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 15px;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .card {
+            background: #2a2a2a;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+            border: 2px solid transparent;
+            cursor: pointer;
+            transition: transform 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .card:hover { transform: translateY(-3px); background: #333; }
+        .card img { width: 80px; height: 80px; object-fit: contain; filter: grayscale(100%) opacity(0.4); transition: filter 0.3s; }
+        .card.captured { border-color: var(--accent); background: #1b3320; }
+        .card.captured img { filter: grayscale(0%) opacity(1); }
+        
+        .card-num { font-size: 0.75rem; font-weight: bold; color: #666; margin-top: 5px; }
+        .card-name { font-size: 0.85rem; text-transform: capitalize; font-weight: 600; }
+
+        /* MAPA CANVAS */
+        #map-container {
+            flex-grow: 1;
+            background: #111;
+            position: relative;
+            overflow: hidden;
+            cursor: crosshair;
+            background-image: radial-gradient(#222 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        
+        /* FERRAMENTAS FLUTUANTES */
+        .toolbar {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.85);
+            padding: 8px 15px;
+            border-radius: 50px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        .tool { 
+            width: 40px; height: 40px; border: none; background: #444; color: white; 
+            border-radius: 50%; cursor: pointer; font-size: 1.2rem; 
+            display: flex; align-items: center; justify-content: center;
+            transition: 0.2s;
+        }
+        .tool:hover { background: #555; transform: scale(1.1); }
+        .tool.active { background: var(--primary); box-shadow: 0 0 10px var(--primary); }
+
+        .map-adder {
+            display: flex;
+            gap: 5px;
+            align-items: center;
+            background: rgba(255,255,255,0.05);
+            padding: 5px 10px;
+            border-radius: 4px;
+            border: 1px solid #444;
+        }
+        
+        #loading { 
+            position: absolute; top:50%; left:50%; transform:translate(-50%, -50%); 
+            background: rgba(0,0,0,0.9); color: white; padding: 20px 40px; 
+            border-radius: 8px; z-index: 200; display: none; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1><span style="font-size:1.5rem;">◓</span> PokéTracker</h1>
+    <div style="display:flex; gap:10px;">
+        <button class="btn" onclick="exportData()">💾 Backup</button>
+        <button class="btn" onclick="document.getElementById('file-in').click()">📂 Restaurar</button>
+        <input type="file" id="file-in" style="display:none" onchange="importData(this)">
+    </div>
+</header>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="setTab('dex')">Pokédex</button>
+    <button class="tab-btn" onclick="setTab('map')">Mapas e Rotas</button>
+</div>
+
+<div class="controls">
+    <label>Filtro:</label>
+    <select id="region-select" onchange="changeRegion()"></select>
+    
+    <div id="map-controls" style="display:none; gap: 10px; align-items: center;">
+        <span>|</span>
+        <label>Local:</label>
+        <select id="submap-select" onchange="changeSubMap()" style="max-width: 250px;"></select>
+        
+        <div class="map-adder" title="Cole uma URL de imagem aqui para substituir o mapa atual">
+            <input type="text" id="custom-map-url" placeholder="URL da imagem..." style="width: 140px;">
+            <button class="btn" onclick="addCustomMap()">💾 Salvar</button>
+        </div>
+    </div>
+
+    <div class="stats" id="stats">0/0</div>
+</div>
+
+<div id="loading">Carregando dados...</div>
+
+<section id="view-dex" class="view active">
+    <div id="grid"></div>
+</section>
+
+<section id="view-map" class="view">
+    <div class="toolbar">
+        <button class="tool active" id="t-move" onclick="setTool('move')" title="Mover">✋</button>
+        <button class="tool" id="t-draw" onclick="setTool('draw')" title="Lápis">✏️</button>
+        <input type="color" id="color" value="#ff0000" style="height:40px; border:none; padding:0; width:40px; cursor: pointer; border-radius:50%; overflow:hidden;">
+        <button class="tool" onclick="undo()" title="Desfazer">↩️</button>
+        <button class="tool" onclick="clearMap()" title="Limpar">🗑️</button>
+    </div>
+    <div id="map-container">
+        <canvas id="canvas"></canvas>
+    </div>
+</section>
+
+<script>
+    // ================= DADOS E CONFIGURAÇÃO =================
+    
+    const regions = [
+        // REGIONAIS
+        { id: 'kanto_rb', name: 'Kanto (FR/LG)', api: 2, type: 'reg' },
+        { id: 'johto_gs', name: 'Johto (HG/SS)', api: 3, type: 'reg' },
+        { id: 'hoenn_rs', name: 'Hoenn (R/S/E)', api: 4, type: 'reg' },
+        { id: 'sinnoh', name: 'Sinnoh (Platinum)', api: 6, type: 'reg' },
+        { id: 'unova', name: 'Unova (B2/W2)', api: 9, type: 'reg' },
+        { id: 'kalos', name: 'Kalos (X/Y)', api: 12, type: 'reg' },
+        { id: 'alola', name: 'Alola (S/M)', api: 16, type: 'reg' },
+        { id: 'galar', name: 'Galar (Sw/Sh)', api: 27, type: 'reg' },
+        { id: 'paldea', name: 'Paldea (Sc/Vi)', api: 31, type: 'reg' },
+        
+        // NATIONAL DEX
+        { id: 'nat_gen1', name: 'National Dex (Gen 1)', api: 1, type: 'nat', limit: 151, relatedReg: 'kanto_rb' },
+        { id: 'nat_gen2', name: 'National Dex (Gen 2)', api: 1, type: 'nat', limit: 251, relatedReg: 'johto_gs' },
+        { id: 'nat_gen3', name: 'National Dex (Gen 3)', api: 1, type: 'nat', limit: 386, relatedReg: 'hoenn_rs' },
+        { id: 'nat_gen4', name: 'National Dex (Gen 4)', api: 1, type: 'nat', limit: 493, relatedReg: 'sinnoh' },
+        { id: 'nat_gen5', name: 'National Dex (Gen 5)', api: 1, type: 'nat', limit: 649, relatedReg: 'unova' },
+        { id: 'nat_gen9', name: 'National Dex (Full)', api: 1, type: 'nat', limit: 1025, relatedReg: 'paldea' }
+    ];
+
+    // MAPAS PADRÃO (GitHub Raw Links para evitar hotlink)
+    const defaultMaps = {
+        'default': { 'Mapa Mundi': 'https://upload.wikimedia.org/wikipedia/commons/8/80/World_Map_%28Pok%C3%A9mon%29.png' },
+        
+        'kanto_rb': {
+            'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/5/53/Kanto_place_names.png',
+            'Viridian Forest': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Viridian%20Forest.png',
+            'Mt. Moon 1F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Mt%20Moon%201F.png',
+            'Mt. Moon B1F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Mt%20Moon%20B1F.png',
+            'Mt. Moon B2F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Mt%20Moon%20B2F.png',
+            'Rock Tunnel 1F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Rock%20Tunnel%201F.png',
+            'Rock Tunnel B1F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Rock%20Tunnel%20B1F.png',
+            'Power Plant': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Power%20Plant.png',
+            'Pokemon Tower 3F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Pokemon%20Tower%203F.png',
+            'Pokemon Tower 4F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Pokemon%20Tower%204F.png',
+            'Pokemon Tower 5F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Pokemon%20Tower%205F.png',
+            'Safari Zone Center': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Safari%20Zone%20Center.png',
+            'Safari Zone East': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Safari%20Zone%20Area%201.png',
+            'Safari Zone North': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Safari%20Zone%20Area%202.png',
+            'Safari Zone West': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Safari%20Zone%20Area%203.png',
+            'Seafoam Islands B3F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Seafoam%20Islands%20B3F.png',
+            'Seafoam Islands B4F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Seafoam%20Islands%20B4F.png',
+            'Pokemon Mansion 1F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Pokemon%20Mansion%201F.png',
+            'Victory Road 1F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Victory%20Road%201F.png',
+            'Victory Road 2F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Victory%20Road%202F.png',
+            'Victory Road 3F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Victory%20Road%203F.png',
+            'Cerulean Cave 1F': 'https://raw.githubusercontent.com/kelseyyoung/FRLGIronmonMap/main/public/images/maps/Cerulean%20Cave%201F.png'
+        },
+
+        'johto_gs': {
+            'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/JohtoMap.png/800px-JohtoMap.png',
+            'Union Cave 1F': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Union%20Cave%201F.png',
+            'Ruins of Alph': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Ruins%20of%20Alph%20Interior.png',
+            'Slowpoke Well': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Slowpoke%20Well%20B1F.png',
+            'Ilex Forest': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Ilex%20Forest.png',
+            'Burned Tower 1F': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Burned%20Tower%201F.png',
+            'Sprout Tower 1F': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Sprout%20Tower%201F.png',
+            'Tin Tower 9F': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Bell%20Tower%209F.png',
+            'Whirl Islands B2F': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Whirl%20Islands%20B2F.png',
+            'Mt Mortar 1F': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Mt%20Mortar%201F%20Entrance.png',
+            'Lake of Rage': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Lake%20of%20Rage.png',
+            'Ice Path 1F': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Ice%20Path%201F.png',
+            'Dragons Den': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Dragons%20Den.png',
+            'Mt Silver': 'https://raw.githubusercontent.com/kelseyyoung/HGSSIronmonMap/main/public/images/maps/Mt%20Silver.png'
+        },
+
+        'hoenn_rs': { 
+            'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/b/b9/Hoenn_place_names.png',
+            'Petalburg Woods': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Petalburg%20Woods.png',
+            'Granite Cave 1F': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Granite%20Cave%201F.png',
+            'Meteor Falls': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Meteor%20Falls%201F%201R.png',
+            'Mt Chimney': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Mt%20Chimney.png',
+            'Jagged Pass': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Jagged%20Pass.png',
+            'Safari Zone South': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Safari%20Zone%20South.png',
+            'Mt Pyre 1F': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Mt%20Pyre%201F.png',
+            'Seafloor Cavern': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Seafloor%20Cavern%20Room%201.png',
+            'Cave of Origin': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Cave%20of%20Origin%201F.png',
+            'Sky Pillar 5F': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Sky%20Pillar%205F.png',
+            'Victory Road 1F': 'https://raw.githubusercontent.com/kelseyyoung/EmeraldIronmonMap/main/public/images/maps/Victory%20Road%201F.png'
+        },
+        
+        'sinnoh': { 'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/Sinnoh_place_names.png/800px-Sinnoh_place_names.png' },
+        'unova': { 'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Unova_place_names.png/800px-Unova_place_names.png' },
+        'kalos': { 'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/Kalos_place_names.png/800px-Kalos_place_names.png' },
+        'alola': { 'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/Alola_USUM_Map.png/800px-Alola_USUM_Map.png' },
+        'galar': { 'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/c/ce/Galar_Map.png' },
+        'paldea': { 'Mapa Geral': 'https://upload.wikimedia.org/wikipedia/commons/9/9e/Paldea_Map.png' }
+    };
+
+    let db = JSON.parse(localStorage.getItem('poke_db_ultimate')) || { captured: {}, customMaps: {}, drawings: {} };
+    let currentRegId = 'kanto_rb';
+    let currentSubMapName = 'Mapa Geral';
+    let currentPokeList = [];
+    
+    let canvas = document.getElementById('canvas');
+    let ctx = canvas.getContext('2d');
+    let mapImg = new Image();
+    let view = { x: 0, y: 0, scale: 1 };
+    let isDrag = false, isDraw = false;
+    let tool = 'move';
+    let lastPos = { x:0, y:0 };
+    let currentPath = [];
+
+    window.onload = () => {
+        updateRegionSelect('dex');
+        
+        const lastReg = localStorage.getItem('last_reg');
+        if(lastReg) {
+            const sel = document.getElementById('region-select');
+            // Verifica se a opção existe
+            if([...sel.options].some(o => o.value === lastReg)) {
+                sel.value = lastReg;
+            }
+        }
+
+        initCanvas();
+        changeRegion();
+    };
+
+    function setTab(mode) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        
+        document.getElementById(`view-${mode}`).classList.add('active');
+        event.target.classList.add('active');
+        
+        document.getElementById('map-controls').style.display = (mode === 'map') ? 'flex' : 'none';
+        
+        updateRegionSelect(mode);
+        
+        if(mode === 'map') {
+            resizeCanvas();
+            updateSubMapSelect();
+            changeSubMap();
+        }
+    }
+
+    function updateRegionSelect(mode) {
+        const sel = document.getElementById('region-select');
+        const currentVal = sel.value || localStorage.getItem('last_reg') || 'kanto_rb';
+        sel.innerHTML = '';
+
+        let validSelection = false;
+        let fallback = null;
+
+        regions.forEach(r => {
+            if(mode === 'map' && r.type === 'nat') return;
+
+            let opt = document.createElement('option');
+            opt.value = r.id; 
+            opt.innerText = r.name;
+            sel.appendChild(opt);
+            
+            if(r.id === currentVal) validSelection = true;
+            if(!fallback) fallback = r.id; 
+        });
+
+        if(validSelection) {
+            sel.value = currentVal;
+        } else {
+            const currentConfig = regions.find(r => r.id === currentVal);
+            if(currentConfig && currentConfig.relatedReg) {
+                sel.value = currentConfig.relatedReg;
+            } else {
+                sel.value = fallback;
+            }
+            changeRegion(); 
+        }
+    }
+
+    async function changeRegion() {
+        const sel = document.getElementById('region-select');
+        currentRegId = sel.value;
+        localStorage.setItem('last_reg', currentRegId); 
+        
+        const loading = document.getElementById('loading');
+        loading.style.display = 'block';
+
+        const config = regions.find(r => r.id === currentRegId);
+        
+        if(!config) { loading.style.display = 'none'; return; }
+
+        try {
+            const res = await fetch(`https://pokeapi.co/api/v2/pokedex/${config.api}`);
+            const data = await res.json();
+            
+            currentPokeList = data.pokemon_entries.map(e => {
+                const urlParts = e.pokemon_species.url.split('/');
+                return {
+                    id: parseInt(urlParts[urlParts.length - 2]),
+                    name: e.pokemon_species.name,
+                    num: e.entry_number
+                };
+            });
+
+            if (config.type === 'nat') {
+                currentPokeList = currentPokeList.filter(p => p.id <= config.limit);
+                currentPokeList.sort((a,b) => a.id - b.id);
+            } else {
+                currentPokeList.sort((a,b) => a.num - b.num);
+            }
+
+            renderDex();
+        } catch(e) { console.error(e); }
+        finally {
+             loading.style.display = 'none';
+        }
+
+        updateSubMapSelect();
+        if(document.getElementById('view-map').classList.contains('active')) {
+            changeSubMap();
+        }
+    }
+
+    function renderDex() {
+        const grid = document.getElementById('grid');
+        grid.innerHTML = '';
+        const captured = db.captured[currentRegId] || [];
+        const fragment = document.createDocumentFragment();
+
+        currentPokeList.forEach(pk => {
+            const d = document.createElement('div');
+            d.className = 'card ' + (captured.includes(pk.id) ? 'captured' : '');
+            
+            const imgUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${pk.id}.png`;
+            
+            d.innerHTML = `
+                <img src="${imgUrl}" loading="lazy" alt="${pk.name}">
+                <div class="card-num">#${pk.id}</div>
+                <div class="card-name">${pk.name.replace(/-/g, ' ')}</div>
+            `;
+            d.onclick = () => toggle(pk.id, d);
+            fragment.appendChild(d);
+        });
+        
+        grid.appendChild(fragment);
+        updateStats();
+    }
+
+    function toggle(id, el) {
+        if(!db.captured[currentRegId]) db.captured[currentRegId] = [];
+        const idx = db.captured[currentRegId].indexOf(id);
+        if(idx > -1) {
+            db.captured[currentRegId].splice(idx, 1);
+            el.classList.remove('captured');
+        } else {
+            db.captured[currentRegId].push(id);
+            el.classList.add('captured');
+        }
+        save();
+        updateStats();
+    }
+
+    function updateStats() {
+        const c = (db.captured[currentRegId] || []).length;
+        const t = currentPokeList.length;
+        const p = t > 0 ? Math.floor((c/t)*100) : 0;
+        document.getElementById('stats').innerText = `${c} / ${t} (${p}%)`;
+    }
+
+    // ================= MAPAS =================
+    function updateSubMapSelect() {
+        const sel = document.getElementById('submap-select');
+        sel.innerHTML = '';
+
+        const defaults = defaultMaps[currentRegId] || defaultMaps['default'];
+        const customs = db.customMaps[currentRegId] || {};
+        const allMaps = { ...defaults, ...customs };
+
+        for (const [name, url] of Object.entries(allMaps)) {
+            let opt = document.createElement('option');
+            opt.value = url; opt.innerText = name;
+            sel.appendChild(opt);
+        }
+    }
+
+    function changeSubMap() {
+        const sel = document.getElementById('submap-select');
+        if(!sel.value) return; 
+        
+        currentSubMapName = sel.options[sel.selectedIndex].text;
+        
+        const customUrl = db.customMaps[currentRegId]?.[currentSubMapName];
+        document.getElementById('custom-map-url').value = customUrl || "";
+
+        mapImg = new Image();
+        mapImg.crossOrigin = "Anonymous"; 
+        
+        mapImg.onerror = () => { 
+            console.warn("Falha ao carregar imagem.");
+            draw(); 
+        };
+
+        mapImg.src = sel.value;
+        mapImg.onload = () => {
+            view = { x: (canvas.width - mapImg.width)/2, y: (canvas.height - mapImg.height)/2, scale: 0.8 };
+            if(mapImg.width > 2000) view.scale = 0.4;
+            if(mapImg.width < 500) view.scale = 2;
+            draw();
+        };
+    }
+
+    function addCustomMap() {
+        const url = document.getElementById('custom-map-url').value;
+        if(!url) return;
+        
+        let name = currentSubMapName;
+        const isDefault = defaultMaps[currentRegId]?.[name];
+        
+        if(isDefault) {
+             const newName = prompt(`Digite um nome para o mapa personalizado:`, name + " Custom");
+             if(!newName) return;
+             name = newName;
+        }
+
+        if(!db.customMaps[currentRegId]) db.customMaps[currentRegId] = {};
+        db.customMaps[currentRegId][name] = url;
+        save();
+        
+        alert(`Mapa salvo!`);
+        updateSubMapSelect();
+        
+        const sel = document.getElementById('submap-select');
+        for(let i=0; i<sel.options.length; i++) {
+            if(sel.options[i].text === name) sel.selectedIndex = i;
+        }
+        changeSubMap();
+    }
+
+    // ================= CANVAS =================
+    function initCanvas() {
+        window.addEventListener('resize', resizeCanvas);
+        canvas.addEventListener('mousedown', startInteract);
+        canvas.addEventListener('mousemove', moveInteract);
+        canvas.addEventListener('mouseup', endInteract);
+        canvas.addEventListener('mouseleave', endInteract);
+        canvas.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const zoom = e.deltaY > 0 ? 0.9 : 1.1;
+            view.scale *= zoom;
+            draw();
+        });
+    }
+
+    function resizeCanvas() {
+        const container = document.getElementById('map-container');
+        if(container) {
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            draw();
+        }
+    }
+
+    function getMapKey() { return `${currentRegId}_${currentSubMapName}`; }
+
+    function draw() {
+        ctx.fillStyle = '#111';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.save();
+        ctx.translate(view.x, view.y);
+        ctx.scale(view.scale, view.scale);
+
+        if(mapImg.complete && mapImg.naturalWidth > 0) {
+            ctx.drawImage(mapImg, 0, 0);
+        } else {
+            ctx.fillStyle = "#333";
+            ctx.fillRect(0, 0, 400, 100);
+            ctx.fillStyle = "white";
+            ctx.font = "20px Arial";
+            ctx.fillText("Carregando ou Erro na Imagem.", 20, 55);
+        }
+
+        const key = getMapKey();
+        const paths = db.drawings[key] || [];
+        
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        paths.forEach(p => {
+            ctx.beginPath();
+            ctx.strokeStyle = p.color;
+            ctx.lineWidth = p.width / view.scale;
+            if(p.points.length > 0) {
+                ctx.moveTo(p.points[0].x, p.points[0].y);
+                for(let i=1; i<p.points.length; i++) ctx.lineTo(p.points[i].x, p.points[i].y);
+            }
+            ctx.stroke();
+        });
+
+        if(currentPath.length > 0) {
+            ctx.beginPath();
+            ctx.strokeStyle = document.getElementById('color').value;
+            ctx.lineWidth = 5 / view.scale;
+            ctx.moveTo(currentPath[0].x, currentPath[0].y);
+            for(let i=1; i<currentPath.length; i++) ctx.lineTo(currentPath[i].x, currentPath[i].y);
+            ctx.stroke();
+        }
+        ctx.restore();
+    }
+
+    function startInteract(e) {
+        isDrag = (tool === 'move');
+        isDraw = (tool === 'draw');
+        lastPos = { x: e.offsetX, y: e.offsetY };
+        if(isDraw) {
+            const mx = (e.offsetX - view.x) / view.scale;
+            const my = (e.offsetY - view.y) / view.scale;
+            currentPath = [{x: mx, y: my}];
+        }
+    }
+
+    function moveInteract(e) {
+        if(isDrag) {
+            view.x += e.offsetX - lastPos.x;
+            view.y += e.offsetY - lastPos.y;
+            lastPos = { x: e.offsetX, y: e.offsetY };
+            draw();
+        }
+        if(isDraw) {
+            const mx = (e.offsetX - view.x) / view.scale;
+            const my = (e.offsetY - view.y) / view.scale;
+            currentPath.push({x: mx, y: my});
+            draw();
+        }
+    }
+
+    function endInteract() {
+        isDrag = false;
+        if(isDraw) {
+            isDraw = false;
+            if(currentPath.length > 1) {
+                const key = getMapKey();
+                if(!db.drawings[key]) db.drawings[key] = [];
+                db.drawings[key].push({ color: document.getElementById('color').value, width: 5, points: currentPath });
+                save();
+            }
+            currentPath = [];
+            draw();
+        }
+    }
+
+    function setTool(t) {
+        tool = t;
+        document.getElementById('t-move').classList.toggle('active', t==='move');
+        document.getElementById('t-draw').classList.toggle('active', t==='draw');
+        document.getElementById('map-container').style.cursor = t==='move' ? 'grab' : 'crosshair';
+    }
+
+    function undo() {
+        const key = getMapKey();
+        if(db.drawings[key] && db.drawings[key].length > 0) {
+            db.drawings[key].pop();
+            save(); draw();
+        }
+    }
+    
+    function clearMap() {
+        if(confirm("Limpar desenhos deste mapa?")) {
+            db.drawings[getMapKey()] = [];
+            save(); draw();
+        }
+    }
+
+    // ================= BACKUP & MIGRAÇÃO =================
+    function save() { localStorage.setItem('poke_db_ultimate', JSON.stringify(db)); }
+    
+    function exportData() {
+        const a = document.createElement('a');
+        a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db));
+        a.download = "poketracker_ultimate_backup.json";
+        a.click();
+    }
+    
+    function importData(inp) {
+        const file = inp.files[0];
+        if(!file) return;
+
+        const r = new FileReader();
+        r.onload = e => {
+            if(confirm("Sobrescrever todos os dados?")) {
+                try {
+                    let imported = JSON.parse(e.target.result);
+                    
+                    // --- MIGRAÇÃO AUTOMÁTICA ---
+                    if(!imported.captured && !imported.customMaps) {
+                        console.log("Detectado formato antigo. Convertendo...");
+                        imported = {
+                            captured: imported,
+                            customMaps: {},
+                            drawings: {}
+                        };
+                    }
+
+                    db = imported;
+                    save(); 
+                    location.reload();
+                } catch(err) { 
+                    alert("Arquivo inválido!"); 
+                    console.error(err);
+                }
+            }
+        };
+        r.readAsText(file);
+    }
+</script>
+
+</body>
+</html>
