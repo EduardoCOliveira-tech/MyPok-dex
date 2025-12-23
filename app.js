@@ -1,20 +1,22 @@
-// app.js - Versão Final com Filtro Dinâmico de Regiões
+// app.js - Versão Universal (Funciona com qualquer formato de data.js)
 
 // 1. DADOS & BACKUP
 const BACKUP_DATA = [
     {id:1,name:"bulbasaur",types:["grass","poison"],stats:{hp:45,atk:49,def:49,spa:65,spd:65,spe:45},evo:16,moves:[{name:"tackle",method:"level-up",level:1},{name:"vine-whip",method:"level-up",level:7}]},
-    {id:4,name:"charmander",types:["fire"],stats:{hp:39,atk:52,def:43,spa:60,spd:50,spe:65},evo:16,moves:[{name:"scratch",method:"level-up",level:1},{name:"ember",method:"level-up",level:7},{name:"flamethrower",method:"level-up",level:31},{name:"fire-blast",method:"machine"}]},
+    {id:4,name:"charmander",types:["fire"],stats:{hp:39,atk:52,def:43,spa:60,spd:50,spe:65},evo:16,moves:[{name:"scratch",method:"level-up",level:1},{name:"ember",method:"level-up",level:7},{name:"flamethrower",method:"level-up",level:31}]},
     {id:7,name:"squirtle",types:["water"],stats:{hp:44,atk:48,def:65,spa:50,spd:64,spe:43},evo:16,moves:[{name:"tackle",method:"level-up",level:1},{name:"water-gun",method:"level-up",level:7}]}
 ];
 
 let dataSource = [];
-if (typeof POKEMON_DATA !== 'undefined' && POKEMON_DATA.length > 0) {
+// Tenta carregar data.js (prioridade), depois db.js, senão usa backup
+if (typeof POKEMON_DATA !== 'undefined' && Array.isArray(POKEMON_DATA)) {
     dataSource = POKEMON_DATA;
     console.log("✅ Usando data.js");
-} else if (typeof POKEMON_DB !== 'undefined' && POKEMON_DB.length > 0) {
+} else if (typeof POKEMON_DB !== 'undefined' && Array.isArray(POKEMON_DB)) {
     dataSource = POKEMON_DB;
     console.log("✅ Usando db.js");
 } else {
+    console.warn("⚠️ Usando Backup de Emergência");
     dataSource = BACKUP_DATA;
 }
 
@@ -25,7 +27,6 @@ if (!db.teleports) db.teleports = {};
 let currentRegId = 'kanto_rb';
 let currentSubMapName = '00. Mapa Geral';
 
-// 3. CANVAS
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let mapImg = new Image();
@@ -36,107 +37,66 @@ let currentPath = [];
 
 // INICIALIZAÇÃO
 window.onload = () => {
-    // Carrega filtros iniciais (Modo Dex por padrão)
     populateRegionSelect('dex');
-    
     const lastReg = localStorage.getItem('last_reg');
     if (lastReg && typeof REGIONS_DB !== 'undefined' && REGIONS_DB.some(r => r.id === lastReg)) {
         currentRegId = lastReg;
-        
-        // Verifica se o select tem essa opção (pode não ter se for nat_ e estivermos em modo mapa, mas no load é dex)
+        // Verifica se o valor existe no select atual
         const sel = document.getElementById('region-select');
-        if (sel.querySelector(`option[value="${lastReg}"]`)) {
-            sel.value = lastReg;
-        }
+        if(sel.querySelector(`option[value="${lastReg}"]`)) sel.value = lastReg;
     }
     initCanvas();
     changeRegion();
 };
 
-// --- FUNÇÃO INTELIGENTE DE FILTRO ---
 function populateRegionSelect(mode) {
     const sel = document.getElementById('region-select');
-    const previousValue = sel.value; // Guarda o valor atual para tentar manter
-    
+    const prev = sel.value;
     sel.innerHTML = '';
-    
     if (typeof REGIONS_DB !== 'undefined') {
         REGIONS_DB.forEach(r => {
-            // SE ESTIVER NO MODO MAPA, IGNORA NATIONAL DEX
-            if (mode === 'map' && r.id.startsWith('nat_')) {
-                return; // Pula este item
-            }
-            
+            if (mode === 'map' && r.id.startsWith('nat_')) return;
             const opt = document.createElement('option');
-            opt.value = r.id;
-            opt.innerText = r.name;
+            opt.value = r.id; opt.innerText = r.name;
             sel.appendChild(opt);
         });
     }
-
-    // Tenta manter a seleção anterior. Se ela sumiu (ex: estava em NatDex e foi pro mapa), volta pro primeiro.
-    if (previousValue && sel.querySelector(`option[value="${previousValue}"]`)) {
-        sel.value = previousValue;
-    } else if (sel.options.length > 0) {
-        sel.selectedIndex = 0;
-        // Se mudou forçadamente, atualiza a região
-        changeRegion(); 
-    }
+    if (prev && sel.querySelector(`option[value="${prev}"]`)) sel.value = prev;
+    else if (sel.options.length > 0) sel.selectedIndex = 0;
 }
 
 function changeRegion() {
     const sel = document.getElementById('region-select');
-    // Se o select estiver vazio ou inválido, aborta
-    if (!sel.value) return;
-    
+    if(!sel.value) return;
     currentRegId = sel.value;
     localStorage.setItem('last_reg', currentRegId);
-    
     if (!db.captured[currentRegId]) db.captured[currentRegId] = [];
     
-    // Atualiza a visualização correta
-    if (document.getElementById('view-dex').classList.contains('active')) {
-        renderDex();
-    } else {
-        updateMapSelect();
-        changeSubMap();
-    }
+    if(document.getElementById('view-dex').classList.contains('active')) renderDex();
+    else { updateMapSelect(); changeSubMap(); }
 }
 
 function setTab(mode) {
-    // 1. Atualiza abas visuais
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`view-${mode}`).classList.add('active');
     event.target.classList.add('active');
-    
-    // 2. Mostra/Esconde controles de mapa
     document.getElementById('map-controls').style.display = (mode === 'map') ? 'flex' : 'none';
     
-    // 3. ATUALIZA A LISTA DE FILTROS COM BASE NA ABA
     populateRegionSelect(mode);
-
-    // 4. Ações específicas
-    if (mode === 'map') {
-        resizeCanvas();
-        updateMapSelect();
-        changeSubMap();
-    } else {
-        renderDex();
-    }
+    if (mode === 'map') { resizeCanvas(); updateMapSelect(); changeSubMap(); }
+    else { renderDex(); }
 }
 
 // RENDER DEX
 function renderDex() {
     const grid = document.getElementById('grid');
     grid.innerHTML = '';
-    
     if (typeof REGIONS_DB === 'undefined') return;
     const config = REGIONS_DB.find(r => r.id === currentRegId);
-    if (!config) return; // Pode acontecer se estiver num mapa sem config de dex, mas aqui filtramos antes
+    if (!config) return;
 
     const fragment = document.createDocumentFragment();
-
     for (let i = config.start; i <= config.end; i++) {
         const d = document.createElement('div');
         const isCaptured = db.captured[currentRegId]?.includes(i);
@@ -152,12 +112,8 @@ function renderDex() {
             <div class="card-num">#${i}</div>
             <div class="card-name">${name}</div>
         `;
-        
         d.onclick = () => toggleCapture(i, d);
-        d.querySelector('.info-btn').onclick = (e) => { 
-            e.stopPropagation(); 
-            openDetails(i); 
-        };
+        d.querySelector('.info-btn').onclick = (e) => { e.stopPropagation(); openDetails(i); };
         fragment.appendChild(d);
     }
     grid.appendChild(fragment);
@@ -181,7 +137,21 @@ function updateStats() {
     document.getElementById('stats').innerText = `${c} / ${total} (${p}%)`;
 }
 
-// MODAL DETALHES
+// --- FUNÇÃO DE AJUDA PARA LER STATS DE QUALQUER JEITO ---
+function getStatValue(stats, keyName, index) {
+    if (!stats) return 0;
+    // Se for Array (ex: [45, 60, ...])
+    if (Array.isArray(stats)) {
+        let val = stats[index];
+        // Se for array de objetos (ex: PokeAPI raw)
+        if (typeof val === 'object' && val !== null) return val.base_stat || 0;
+        return val || 0;
+    }
+    // Se for Objeto (ex: {hp: 45, atk: 60...})
+    return stats[keyName] || 0;
+}
+
+// MODAL DETALHES BLINDADO
 function openDetails(id) {
     const modal = document.getElementById('modal-overlay');
     const body = document.getElementById('modal-body');
@@ -189,39 +159,49 @@ function openDetails(id) {
     
     try {
         const data = dataSource.find(p => p.id === id);
-        if (!data) { body.innerHTML = `<div style="padding:30px;text-align:center">Dados não encontrados.<br><button class="btn" onclick="closeModal()">Fechar</button></div>`; return; }
+        if (!data) throw new Error("Pokémon não encontrado no data.js");
 
         const imgUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
         const typeColors = (typeof TYPE_COLORS !== 'undefined') ? TYPE_COLORS : {};
-        const typesHtml = data.types.map(t => `<span class="type-badge" style="background:${typeColors[t]||'#555'}">${t}</span>`).join('');
+        const typesHtml = (data.types || []).map(t => `<span class="type-badge" style="background:${typeColors[t]||'#555'}">${t}</span>`).join('');
         const evoText = data.evo && data.evo < 100 ? `(Evolui no lvl ${data.evo})` : "(Forma Final)";
 
-        // Stats
-        const labels = {hp:'HP', atk:'ATK', def:'DEF', spa:'SP.ATK', spd:'SP.DEF', spe:'SPD'};
+        // Stats Universal
+        const labels = ['HP', 'ATK', 'DEF', 'SP.A', 'SP.D', 'SPD'];
         const keys = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
         let statsHtml = "";
-        let s = data.stats || {hp:0, atk:0, def:0, spa:0, spd:0, spe:0};
+        
+        // Pega valores usando a função auxiliar que não falha
+        let s = data.stats;
+        let hp = getStatValue(s, 'hp', 0);
+        let atk = getStatValue(s, 'atk', 1);
+        let def = getStatValue(s, 'def', 2);
+        let spa = getStatValue(s, 'spa', 3);
+        let spd = getStatValue(s, 'spd', 4);
+        let spe = getStatValue(s, 'spe', 5);
+        
+        const statValues = [hp, atk, def, spa, spd, spe];
 
-        keys.forEach(k => {
-            const val = s[k] || 0;
+        statValues.forEach((val, i) => {
             const w = Math.min(100, (val/255)*100);
-            statsHtml += `<div class="stat-row"><span class="stat-label">${labels[k]}</span><span class="stat-val">${val}</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${w}%"></div></div></div>`;
+            statsHtml += `<div class="stat-row"><span class="stat-label">${labels[i]}</span><span class="stat-val">${val}</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${w}%"></div></div></div>`;
         });
 
         // Treino
-        let isPhysical = s.atk >= s.spa;
-        let isFast = s.spe >= 100;
-        let isTank = s.def > 90 || s.spd > 90;
+        let isPhysical = atk >= spa;
+        let isFast = spe >= 100;
+        let isTank = def > 90 || spd > 90;
         let natureText = "Neutro";
+        
         if (isFast) natureText = isPhysical ? "Jolly (+Spd -SpA)" : "Timid (+Spd -Atk)";
-        else if (isTank && s.spe < 60) natureText = (s.def >= s.spd) ? (isPhysical ? "Impish (+Def -SpA)" : "Bold (+Def -Atk)") : (isPhysical ? "Careful (+SpD -SpA)" : "Calm (+SpD -Atk)");
+        else if (isTank && spe < 60) natureText = (def >= spd) ? (isPhysical ? "Impish (+Def -SpA)" : "Bold (+Def -Atk)") : (isPhysical ? "Careful (+SpD -SpA)" : "Calm (+SpD -Atk)");
         else natureText = isPhysical ? "Adamant (+Atk -SpA)" : "Modest (+SpA -Atk)";
         let focusText = isFast ? `Speed + ${isPhysical?'Atk':'Sp.Atk'}` : `HP + ${isPhysical?'Atk':'Sp.Atk'}`;
 
         // Moves
         const evoCap = data.evo || 100;
         let naturalMoves = [], tmMoves = [];
-        if(data.moves) {
+        if(data.moves && Array.isArray(data.moves)) {
             naturalMoves = data.moves.filter(m => m.method === 'level-up' && m.level <= evoCap && m.level > 1).sort((a,b)=>a.level-b.level).slice(-6);
             tmMoves = data.moves.filter(m => m.method === 'machine').slice(0, 10);
         }
@@ -232,31 +212,19 @@ function openDetails(id) {
         // Build
         let build = [];
         let allMoves = [...naturalMoves, ...tmMoves]; 
-        const bestMoves = [
-            'flamethrower','fire-blast','surf','hydro-pump','thunderbolt','ice-beam','earthquake','psychic','shadow-ball','dragon-claw','crunch','sludge-bomb','leaf-blade','energy-ball','moonblast','close-combat',
-            'return','body-slam','fly','strength','slash','bite','ember','water-gun','thundershock','vinewhip','confusion','rock-slide','brick-break','dig','aerial-ace'
-        ];
+        const bestMoves = ['flamethrower','fire-blast','surf','hydro-pump','thunderbolt','ice-beam','earthquake','psychic','shadow-ball','dragon-claw','crunch','sludge-bomb','leaf-blade','energy-ball','moonblast','close-combat','return','body-slam','fly','strength','slash','bite','ember','water-gun','thundershock','vinewhip','confusion','rock-slide','brick-break','dig','aerial-ace'];
 
-        // 1. STAB
-        data.types.forEach(t => {
+        (data.types || []).forEach(t => {
             let found = allMoves.find(m => bestMoves.includes(m.name) && !build.some(b=>b.name===m.name));
             if(found) build.push({...found, type:'stab'});
         });
-        // 2. Cobertura
         if(build.length < 4) {
             let covers = allMoves.filter(m => bestMoves.includes(m.name) && !build.some(b=>b.name===m.name));
-            for(let c of covers) {
-                if(build.length >= 4) break;
-                build.push({...c, type:'cover'});
-            }
+            for(let c of covers) { if(build.length >= 4) break; build.push({...c, type:'cover'}); }
         }
-        // 3. Preenchimento
         if(build.length < 4) {
             let fillers = naturalMoves.slice().reverse().filter(m => !build.some(b=>b.name===m.name));
-            for(let f of fillers) {
-                if(build.length >= 4) break;
-                build.push({...f, type:'stab'});
-            }
+            for(let f of fillers) { if(build.length >= 4) break; build.push({...f, type:'stab'}); }
         }
 
         const buildHtml = build.map(m => `<div class="build-slot ${m.type}">${m.name}</div>`).join('');
@@ -271,36 +239,14 @@ function openDetails(id) {
                 </div>
             </div>
             <div style="margin-bottom:15px;">${statsHtml}</div>
-            
-            <div class="specs-box" style="margin-top:0;">
-                <span class="specs-title">🏆 Build Recomendada</span>
-                <div class="build-grid">${buildHtml}</div>
-            </div>
-
-            <div class="specs-box">
-                <span class="specs-title">🍃 Naturais (Recentes)</span>
-                <div class="move-grid">${naturalHtml}</div>
-                <div style="height:12px"></div>
-                <span class="specs-title" style="color:var(--tm-color)">💿 TMs Compatíveis</span>
-                <div class="move-grid">${tmHtml}</div>
-            </div>
-
-            <div class="specs-box">
-                <span class="specs-title">⚡ Sugestão de Treino</span>
-                <p style="margin:5px 0; font-size:0.9rem;"><strong>Natureza:</strong> ${natureText}</p>
-                <p style="margin:5px 0; font-size:0.9rem;"><strong>Foco:</strong> ${focusText}</p>
-            </div>
-
-            <div class="specs-box">
-                <span class="specs-title">📝 Notas</span>
-                <textarea class="user-notes" id="notes-${id}">${notes}</textarea>
-                <button class="btn" style="width:100%; margin-top:5px; background:var(--accent);" onclick="saveNote(${id})">Salvar</button>
-            </div>
+            <div class="specs-box" style="margin-top:0;"><span class="specs-title">🏆 Build Recomendada</span><div class="build-grid">${buildHtml}</div></div>
+            <div class="specs-box"><span class="specs-title">🍃 Naturais (Recentes)</span><div class="move-grid">${naturalHtml}</div><div style="height:12px"></div><span class="specs-title" style="color:var(--tm-color)">💿 TMs Disponíveis</span><div class="move-grid">${tmHtml}</div></div>
+            <div class="specs-box"><span class="specs-title">⚡ Sugestão de Treino</span><p style="margin:5px 0; font-size:0.9rem;"><strong>Natureza:</strong> ${natureText}</p><p style="margin:5px 0; font-size:0.9rem;"><strong>Foco:</strong> ${focusText}</p></div>
+            <div class="specs-box"><span class="specs-title">📝 Notas</span><textarea class="user-notes" id="notes-${id}">${notes}</textarea><button class="btn" style="width:100%; margin-top:5px; background:var(--accent);" onclick="saveNote(${id})">Salvar</button></div>
         `;
-
     } catch (err) {
         console.error(err);
-        body.innerHTML = `<div style="padding:30px;text-align:center">Erro ao abrir: ${err.message}<br><button class="btn" onclick="closeModal()">Fechar</button></div>`;
+        body.innerHTML = `<div style="padding:30px;text-align:center;color:#ef4444">Erro: ${err.message}<br><br><small>Tente limpar o cache (Ctrl + F5)</small><br><br><button class="btn" onclick="closeModal()">Fechar</button></div>`;
     }
 }
 
