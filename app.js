@@ -46,20 +46,16 @@ function logout() {
 // Observador de Login (Mantém logado ao recarregar)
 auth.onAuthStateChanged((user) => {
     if (user) {
-        // Usuário detectado!
         currentUser = user;
-        
-        // Atualiza o botão de login
         const loginBtn = document.querySelector('.login-btn');
         if(loginBtn) loginBtn.innerHTML = `👤 Olá, ${user.displayName.split(' ')[0]}`;
 
-        // --- CORREÇÃO AQUI ---
-        // Se o usuário existe, forçamos a entrada no App imediatamente
+        // Entra no App
         showApp(); 
         
-        // Opcional: Recarrega os dados silenciosamente para garantir sincronia
-        // (Remova esta linha se não quiser que ele busque dados toda vez que der F5)
-        // loadUserData(user.uid); 
+        // AGORA SIM: Carrega dados silenciosamente (true)
+        // Isso garante que se você der F5, ele puxa os dados mais recentes da nuvem sem perguntar
+        loadUserData(user.uid, true); 
     } else {
         currentUser = null;
     }
@@ -84,30 +80,38 @@ function save() {
     }
 }
 
-function loadUserData(userId) {
+function loadUserData(userId, silent = false) {
     firestore.collection("users").doc(userId).get().then((doc) => {
         if (doc.exists) {
             const cloudData = doc.data();
             console.log("Dados da nuvem recebidos:", cloudData);
             
-            if(confirm("Encontrámos dados salvos na sua conta Google. Deseja carregar esse progresso? (Isso substituirá o atual)")) {
+            // Lógica: Se for silencioso (F5) OU se o usuário confirmar (Login manual)
+            if(silent || confirm("Encontrámos dados salvos na sua conta Google. Deseja carregar esse progresso?")) {
                 db = cloudData; 
-                delete db.lastUpdated;
+                delete db.lastUpdated; // Limpa timestamp interno
                 
+                // Garante integridade
                 if (!db.teleports) db.teleports = {};
                 if (!db.drawings) db.drawings = {};
                 if (!db.captured) db.captured = {};
                 if (!db.notes) db.notes = {};
 
-                save();
+                save(); // Salva no LocalStorage para ficar sincronizado
+                
+                // Atualiza a tela
                 renderDex();
                 updateStats();
                 if(document.getElementById('view-map').classList.contains('active')) {
                    loadMapAssets();
                 }
-                showToast("Progresso sincronizado! 📥");
+                
+                // Só mostra o aviso se NÃO for silencioso (para não poluir a tela ao dar F5)
+                if(!silent) showToast("Progresso sincronizado! 📥");
+                else console.log("Sincronia silenciosa realizada com sucesso.");
             }
         } else {
+            // Se não tem nada na nuvem, cria o registro inicial
             save(); 
         }
     }).catch((error) => console.log("Erro ao buscar:", error));
