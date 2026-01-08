@@ -43,12 +43,23 @@ function logout() {
     });
 }
 
-// Observador de Login
+// Observador de Login (Mantém logado ao recarregar)
 auth.onAuthStateChanged((user) => {
     if (user) {
+        // Usuário detectado!
         currentUser = user;
+        
+        // Atualiza o botão de login
         const loginBtn = document.querySelector('.login-btn');
         if(loginBtn) loginBtn.innerHTML = `👤 Olá, ${user.displayName.split(' ')[0]}`;
+
+        // --- CORREÇÃO AQUI ---
+        // Se o usuário existe, forçamos a entrada no App imediatamente
+        showApp(); 
+        
+        // Opcional: Recarrega os dados silenciosamente para garantir sincronia
+        // (Remova esta linha se não quiser que ele busque dados toda vez que der F5)
+        // loadUserData(user.uid); 
     } else {
         currentUser = null;
     }
