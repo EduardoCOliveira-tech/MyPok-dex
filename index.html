@@ -7,128 +7,155 @@
     <meta name="keywords" content="Pokemon, Ironmon, Tracker, Nuzlocke, Mapas Interativos, Kaizo">
     <meta property="og:title" content="MyPokédex Ultimate - Ironmon Tracker">
     <meta property="og:description" content="A ferramenta definitiva para seus desafios Ironmon. Mapas gigantes, rotas e stats.">
-    <meta property="og:image" content="LINK_PARA_UMA_IMAGEM_DE_CAPA_DO_SEU_SITE.png">
-    <meta property="og:url" content="URL_DO_SEU_SITE">
     <meta property="og:type" content="website">
     <title>MyPokédex Ultimate</title>
     <link rel="icon" href="https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/items/poke-ball.png">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4485676372487848"
-     crossorigin="anonymous"></script>
+    
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4485676372487848" crossorigin="anonymous"></script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-G0Y8JGQ9G5"></script>
     <script>
         window.dataLayer = window.dataLayer || [];
         function gtag(){dataLayer.push(arguments);}
         gtag('js', new Date());
-    
         gtag('config', 'G-G0Y8JGQ9G5');
     </script>
 </head>
 <body>
 
-<header>
-    <h1><span class="logo-icon">◓</span> MyPokédex </h1>
-    <div class="header-actions">
-        <button class="btn" onclick="exportData()">💾 Backup</button>
-        <button class="btn" onclick="document.getElementById('file-in').click()">📂 Restaurar</button>
-        <input type="file" id="file-in" style="display:none" onchange="importData(this)">
-    </div>
-</header>
+    <section id="landing-page">
+        <div class="hero-content">
+            <h1 class="hero-logo"><span class="logo-icon">◓</span> MyPokédex <span style="color:var(--accent)">Ultimate</span></h1>
+            <p class="hero-subtitle">O Tracker definitivo para seus desafios Ironmon e Nuzlocke.</p>
+            
+            <div class="auth-buttons">
+                <button class="hero-btn login-btn" onclick="handleLogin()">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="20">
+                    Entrar com Google
+                </button>
+                
+                <div class="divider">ou</div>
 
-<div class="tabs">
-    <button class="tab-btn active" onclick="setTab('dex')">Pokédex</button>
-    <button class="tab-btn" onclick="setTab('map')">Mapas</button>
-</div>
-
-<div class="controls">
-    <div>
-        <label>Região / Filtro:</label>
-        <select id="region-select" onchange="changeRegion()"></select>
-    </div>
-    
-    <div id="map-controls" style="display:none; gap: 15px; align-items: flex-end;">
-        <div style="height:40px; width:1px; background:rgba(255,255,255,0.1);"></div>
-        <div>
-            <label>Local:</label>
-            <select id="submap-select" onchange="changeSubMap()" style="min-width: 200px;"></select>
+                <button class="hero-btn guest-btn" onclick="enterAsGuest()">
+                    Continuar como Visitante 🚀
+                </button>
+            </div>
+            
+            <p class="hero-note">Visitantes salvam os dados apenas neste navegador (LocalStorage).</p>
         </div>
-        <div class="map-adder">
-            <input type="text" id="custom-map-url" placeholder="URL da imagem..." style="width: 100px;">
-            <button class="map-btn btn-save" onclick="addCustomMap()" title="Salvar">💾</button>
-            <button class="map-btn btn-del" onclick="deleteCurrentMap()" title="Excluir">🗑️</button>
-        </div>
-    </div>
+    </section>
 
-    <div class="stats" id="stats">0/0</div>
-</div>
-
-<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
-    <div class="modal-content" onclick="event.stopPropagation()">
-        <span class="close-modal" onclick="closeModal()">×</span>
-        <div id="modal-body"></div>
-    </div>
-</div>
-
-<section id="view-dex" class="view active">
-    <div id="grid"></div>
-
-    <div class="ad-container">
-        <p class="ad-placeholder">Espaço para Anúncio (Apoie o desenvolvedor!)</p>
-    </div>
-
-    <footer class="app-footer">
-        <div class="footer-content">
-            <div class="footer-section credits">
-                <h3>Créditos</h3>
-                <p>
-                    Mapas e Dados ("Stitched Maps") originalmente criados pela 
-                    <a href="https://github.com/kelseyyoung" target="_blank" rel="noopener">Comunidade Ironmon (kelseyyoung)</a>.
-                </p>
-                <p class="disclaimer">
-                    Pokémon © 2002-2025 Pokémon. © 1995-2025 Nintendo/Creatures Inc./GAME FREAK inc. TM, ® and Pokémon character names are trademarks of Nintendo.
-                    <br>
-                    Este é um projeto de fã sem fins lucrativos e não é afiliado à Nintendo.
-                </p>
+    <div id="app-container" style="display: none; flex-direction: column; height: 100%;">
+        
+        <header>
+            <h1><span class="logo-icon">◓</span> MyPokédex </h1>
+            
+            <div class="search-bar-container">
+                <input type="text" id="poke-search" placeholder="Buscar Pokémon..." onkeyup="searchPokemon(event)">
+                <span class="search-icon">🔍</span>
             </div>
 
-            <div class="footer-section social">
-                <h3>Desenvolvido por Eduardo Oliveira</h3>
-                <div class="social-links">
-                    <a href="https://github.com/EduardoCOliveira-tech?tab=repositories" target="_blank">GitHub</a>
-                    <a href="https://www.instagram.com/edua.rdocarvalhoco/" target="_blank">Instagram</a>
-                    <a href="mailto:eduardocarvalhooliveira2@gmail.com" target="_blank">Contato</a>
+            <div class="header-actions">
+                <button class="btn" onclick="exportData()">💾 Backup</button>
+                <button class="btn" onclick="document.getElementById('file-in').click()">📂 Restaurar</button>
+                <input type="file" id="file-in" style="display:none" onchange="importData(this)">
+                <button class="btn logout-btn" onclick="logout()" title="Sair">🚪</button>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" onclick="setTab('dex')">Pokédex</button>
+            <button class="tab-btn" onclick="setTab('map')">Mapas</button>
+        </div>
+
+        <div class="controls">
+            <div>
+                <label>Região / Filtro:</label>
+                <select id="region-select" onchange="changeRegion()"></select>
+            </div>
+            
+            <div class="stats" id="stats">0/0</div>
+        </div>
+
+        <div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+            <div class="modal-content" onclick="event.stopPropagation()">
+                <span class="close-modal" onclick="closeModal()">×</span>
+                <div id="modal-body"></div>
+            </div>
+        </div>
+
+        <section id="view-dex" class="view active">
+            <div id="grid"></div>
+
+            <div class="ad-container">
+                <p class="ad-placeholder">Espaço para Anúncio (Apoie o desenvolvedor!)</p>
+            </div>
+
+            <footer class="app-footer">
+                <div class="footer-content">
+                    
+                    <div class="footer-section credits">
+                        <h3>Créditos</h3>
+                        <p>
+                            Mapas e Dados ("Stitched Maps") originalmente criados pela 
+                            <a href="https://github.com/kelseyyoung" target="_blank" rel="noopener">Comunidade Ironmon (kelseyyoung)</a>.
+                        </p>
+                        <p class="disclaimer">
+                            Pokémon © 2002-2025 Pokémon. © 1995-2025 Nintendo/Creatures Inc./GAME FREAK inc. TM, ® and Pokémon character names are trademarks of Nintendo.
+                            <br>
+                            Este é um projeto de fã sem fins lucrativos e não é afiliado à Nintendo.
+                        </p>
+                    </div>
+
+                    <div class="footer-section social">
+                        <h3>Desenvolvido por Eduardo Oliveira</h3>
+                        <div class="social-links">
+                            <a href="https://github.com/EduardoCOliveira-tech" target="_blank">GitHub</a>
+                            <a href="https://www.instagram.com/edua.rdocarvalhoco/" target="_blank">Instagram</a>
+                            <a href="mailto:eduardocarvalhooliveira2@gmail.com">Contato</a>
+                        </div>
+                    </div>
+
+                    <div class="footer-section support">
+                        <h3>Apoie o Projeto</h3>
+                        <p>Gostou da ferramenta? Ajude a manter o servidor online!</p>
+                        
+                        <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                            <a href="https://ko-fi.com/eduardocarvalho" target="_blank" class="kofi-button">
+                                <img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy Me a Ko-fi" style="height: 40px !important; border: 0px !important;">
+                            </a>
+                            
+                            <a href="privacy.html" target="_blank" style="font-size: 0.85rem; color: #666; text-decoration: none; border-bottom: 1px dotted #666;">
+                                Política de Privacidade
+                            </a>
+                        </div>
+                    </div>
+
                 </div>
+            </footer>
+        </section>
+
+        <section id="view-map" class="view">
+            <div class="toolbar">
+                <button class="tool active" id="t-move" onclick="setTool('move')">✋</button>
+                <button class="tool" id="t-draw" onclick="setTool('draw')">✏️</button>
+                <button class="tool" id="t-tele" onclick="setTool('tele')" style="color:#00bcd4">🌀</button>
+                <input type="color" id="color" value="#ef4444">
+                <button class="tool" onclick="undo()">↩️</button>
+                <button class="tool" onclick="clearMap()">🗑️</button>
             </div>
+            <div id="map-container"><canvas id="canvas"></canvas></div>
+        </section>
 
-            <div class="footer-section support">
-                <h3>Apoie o Projeto</h3>
-                <p>Gostou da ferramenta? Ajude a manter o servidor online!</p>
-                <a href="https://ko-fi.com/eduardocarvalho" target="_blank" class="kofi-button">
-                    <img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Buy Me a Ko-fi" style="height: 40px !important; border: 0px !important;">
-                </a>
-                <a href="privacy.html" target="_blank" style="font-size: 0.8rem; color: #555;">Política de Privacidade</a>
-            </div>
-        </div>
-    </footer>
-</section>
+    </div> 
 
-<section id="view-map" class="view">
-    <div class="toolbar">
-        <button class="tool active" id="t-move" onclick="setTool('move')" title="Mover">✋</button>
-        <button class="tool" id="t-draw" onclick="setTool('draw')" title="Desenhar">✏️</button>
-        <button class="tool" id="t-tele" onclick="setTool('tele')" title="Teleporte" style="color:#00bcd4">🌀</button>
-        <input type="color" id="color" value="#ef4444">
-        <button class="tool" onclick="undo()" title="Desfazer">↩️</button>
-        <button class="tool" onclick="clearMap()" title="Limpar">🗑️</button>
-    </div>
-    <div id="map-container"><canvas id="canvas"></canvas></div>
-</section>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-<script src="db.js"></script>   <script src="data.js"></script> <script src="app.js"></script>  
-
+    <script src="db.js"></script>
+    <script src="data.js"></script>
+    <script src="app.js"></script>
 </body>
 </html>
-
-

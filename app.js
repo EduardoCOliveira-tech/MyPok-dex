@@ -1,10 +1,119 @@
-// app.js - Versão Definitiva (Correção de Navegação entre Abas)
+/* ========================
+   1. CONFIGURAÇÃO DO FIREBASE
+   ======================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyDbJ97xe63rkG1YXag6Oqj7iQwm1tstjqo",
+  authDomain: "mypokedex-27317.firebaseapp.com",
+  projectId: "mypokedex-27317",
+  storageBucket: "mypokedex-27317.firebasestorage.app",
+  messagingSenderId: "63423489754",
+  appId: "1:63423489754:web:efae4265a7a43515dc27e3"
+};
+
+// Inicializa o Firebase
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const firestore = firebase.firestore();
+
+let currentUser = null;
+
+/* ========================
+   2. SISTEMA DE LOGIN (GOOGLE)
+   ======================== */
+function handleLogin() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider)
+        .then((result) => {
+            currentUser = result.user;
+            console.log("Logado como:", currentUser.displayName);
+            showApp();
+            loadUserData(currentUser.uid); // Busca dados da nuvem
+        })
+        .catch((error) => {
+            console.error("Erro no login:", error);
+            alert("Erro ao entrar: " + error.message);
+        });
+}
+
+function logout() {
+    auth.signOut().then(() => {
+        currentUser = null;
+        localStorage.removeItem('isGuest');
+        location.reload(); 
+    });
+}
+
+// Observador de Login
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        currentUser = user;
+        const loginBtn = document.querySelector('.login-btn');
+        if(loginBtn) loginBtn.innerHTML = `👤 Olá, ${user.displayName.split(' ')[0]}`;
+    } else {
+        currentUser = null;
+    }
+});
+
+/* ========================
+   3. SISTEMA DE SALVAR (LOCAL + NUVEM)
+   ======================== */
+function save() {
+    // 1. Salva Localmente
+    localStorage.setItem('poke_db_ultimate', JSON.stringify(db));
+    localStorage.setItem('last_reg', currentRegId);
+
+    // 2. Se logado, salva na Nuvem
+    if (currentUser) {
+        const cloudData = JSON.parse(JSON.stringify(db)); 
+        cloudData.lastUpdated = new Date();
+
+        firestore.collection("users").doc(currentUser.uid).set(cloudData)
+            .then(() => { console.log("Salvo na nuvem."); })
+            .catch((error) => console.error("Erro ao salvar na nuvem:", error));
+    }
+}
+
+function loadUserData(userId) {
+    firestore.collection("users").doc(userId).get().then((doc) => {
+        if (doc.exists) {
+            const cloudData = doc.data();
+            console.log("Dados da nuvem recebidos:", cloudData);
+            
+            if(confirm("Encontrámos dados salvos na sua conta Google. Deseja carregar esse progresso? (Isso substituirá o atual)")) {
+                db = cloudData; 
+                delete db.lastUpdated;
+                
+                if (!db.teleports) db.teleports = {};
+                if (!db.drawings) db.drawings = {};
+                if (!db.captured) db.captured = {};
+                if (!db.notes) db.notes = {};
+
+                save();
+                renderDex();
+                updateStats();
+                if(document.getElementById('view-map').classList.contains('active')) {
+                   loadMapAssets();
+                }
+                showToast("Progresso sincronizado! 📥");
+            }
+        } else {
+            save(); 
+        }
+    }).catch((error) => console.log("Erro ao buscar:", error));
+}
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast-msg';
+    toast.innerText = message;
+    document.body.appendChild(toast);
+    setTimeout(() => { toast.remove(); }, 3000);
+}
 
 // ==========================================
-// 1. CONFIGURAÇÃO DOS MAPAS
+// 4. CONFIGURAÇÃO DOS MAPAS
 // ==========================================
 const MAP_CONFIG = {
-    // --- HEART GOLD / SOUL SILVER ---
     "hgss_johto": {
         name: "HGSS - Johto",
         folder: "assetsHGSS/",
@@ -52,7 +161,6 @@ const MAP_CONFIG = {
             { color: "#bbc1c9", points: [[169,3420, 717,3260], [501,1520, 782,1371]] }
         ]
     },
-    // --- FIRE RED / LEAF GREEN ---
     "frlg_kanto": {
         name: "FRLG - Kanto",
         folder: "assetsFRLG/",
@@ -86,7 +194,6 @@ const MAP_CONFIG = {
             { color: "#5721c2", points: [[4799,1999, 5004,1888], [5068,1843, 5228,1892], [5227,1842, 5228,1716], [5101,1845, 5228,1587], [5101,1892, 4906,1842], [5226,1763, 4779,1716], [5098,1763, 4969,1587], [5098,1716, 5098,1587], [5227,1636, 4779,1845], [5098,1636, 4778,1588], [5035,1636, 4783,1892], [5035,1590, 4907,1589], [4972,1636, 4907,1715], [4779,1764, 4907,1637], [4907,1764, 4907,1892], [5067,1764, 4779,1637]] }
         ]
     },
-    // --- EMERALD (HOENN) ---
     "emerald_hoenn": {
         name: "Emerald - Hoenn",
         folder: "assetsEmerald/",
@@ -136,7 +243,7 @@ const MAP_CONFIG = {
 };
 
 // ==========================================
-// 2. DADOS & BACKUP
+// 5. DADOS & ESTADO
 // ==========================================
 const BACKUP_DATA = [
     {id:1,name:"bulbasaur",types:["grass","poison"],stats:{hp:45,atk:49,def:49,spa:65,spd:65,spe:45},evo:16},
@@ -153,15 +260,17 @@ if (typeof POKEMON_DATA !== 'undefined' && Array.isArray(POKEMON_DATA)) {
     dataSource = BACKUP_DATA;
 }
 
-// ==========================================
-// 3. ESTADO DA APLICAÇÃO
-// ==========================================
+// Carrega dados locais ou inicia vazio
 let db = JSON.parse(localStorage.getItem('poke_db_ultimate')) || { captured: {}, drawings: {}, notes: {}, teleports: {} };
 if (!db.teleports) db.teleports = {};
+if (!db.drawings) db.drawings = {};
+if (!db.notes) db.notes = {};
+if (!db.captured) db.captured = {};
 
 let currentRegId = 'hgss_johto'; 
 let loadedImages = { main: null, overlays: [] };
 
+// Variáveis do Canvas
 let canvas = document.getElementById('canvas');
 let ctx = canvas.getContext('2d');
 let view = { x: -2000, y: -1000, scale: 0.3 }; 
@@ -170,25 +279,29 @@ let lastPos = { x: 0, y: 0 };
 let currentPath = [];
 
 // ==========================================
-// 4. INICIALIZAÇÃO
+// 6. INICIALIZAÇÃO
 // ==========================================
 window.onload = () => {
+    // Verifica Landing Page
+    const isGuest = localStorage.getItem('isGuest');
+    if (isGuest === 'true') {
+        showApp();
+    } else {
+        document.getElementById('landing-page').style.display = 'flex';
+    }
+
     // Tenta recuperar última região salva
     const lastReg = localStorage.getItem('last_reg');
-    if (lastReg) {
-        // Aceita se for mapa ou dex válida
-        if (MAP_CONFIG[lastReg] || (typeof REGIONS_DB !== 'undefined' && REGIONS_DB.find(r => r.id === lastReg))) {
-            currentRegId = lastReg;
-        }
+    if (lastReg && (MAP_CONFIG[lastReg] || (typeof REGIONS_DB !== 'undefined' && REGIONS_DB.find(r => r.id === lastReg)))) {
+        currentRegId = lastReg;
     } else {
-        // Fallback
         if(typeof REGIONS_DB !== 'undefined' && REGIONS_DB.length > 0) currentRegId = REGIONS_DB[0].id;
     }
     
     // Configura UI inicial
     initCanvas();
     const isMapMode = document.getElementById('view-map').classList.contains('active');
-    ensureValidId(isMapMode ? 'map' : 'dex'); // Garante ID válido para a view inicial
+    ensureValidId(isMapMode ? 'map' : 'dex'); 
     populateRegionSelect();
     
     if(isMapMode) {
@@ -203,24 +316,40 @@ window.onload = () => {
     if(sel) sel.value = currentRegId;
 };
 
-// Nova Função Auxiliar para Garantir IDs Válidos
+// Funções de UI (Landing Page)
+function enterAsGuest() {
+    localStorage.setItem('isGuest', 'true');
+    showApp();
+}
+
+function showApp() {
+    const landing = document.getElementById('landing-page');
+    const app = document.getElementById('app-container');
+    
+    landing.style.opacity = '0';
+    setTimeout(() => {
+        landing.style.display = 'none';
+        app.style.display = 'flex'; 
+        window.dispatchEvent(new Event('resize'));
+    }, 300);
+}
+
+// ==========================================
+// 7. FUNÇÕES AUXILIARES
+// ==========================================
 function ensureValidId(mode) {
     if (mode === 'map') {
-        // Se estamos indo para o mapa, mas o ID atual não é de mapa...
         if(!MAP_CONFIG[currentRegId]) {
-            // Tenta converter Dex ID -> Map ID
             if(currentRegId === 'kanto_rb') currentRegId = 'frlg_kanto';
             else if(currentRegId === 'johto_gs') currentRegId = 'hgss_johto';
             else if(currentRegId === 'hoenn_rs') currentRegId = 'emerald_hoenn';
-            else currentRegId = 'hgss_johto'; // Default
+            else currentRegId = 'hgss_johto'; 
         }
     } else {
-        // Se estamos indo para Dex, mas o ID atual é de mapa...
         const isDexId = typeof REGIONS_DB !== 'undefined' && REGIONS_DB.some(r => r.id === currentRegId);
         if(!isDexId) {
-            // Tenta converter Map ID -> Dex ID
             if(currentRegId === 'frlg_kanto') currentRegId = 'kanto_rb';
-            else if(currentRegId.startsWith('hgss_')) currentRegId = 'johto_gs'; // Tanto Johto quanto Kanto do HGSS vão para a Dex de Johto
+            else if(currentRegId.startsWith('hgss_')) currentRegId = 'johto_gs'; 
             else if(currentRegId === 'emerald_hoenn') currentRegId = 'hoenn_rs';
             else if(typeof REGIONS_DB !== 'undefined') currentRegId = REGIONS_DB[0].id;
         }
@@ -231,7 +360,6 @@ function ensureValidId(mode) {
 function populateRegionSelect() {
     const sel = document.getElementById('region-select');
     sel.innerHTML = '';
-    
     const isMapMode = document.getElementById('view-map').classList.contains('active');
 
     if (isMapMode) {
@@ -242,7 +370,6 @@ function populateRegionSelect() {
             if(key === currentRegId) opt.selected = true;
             sel.appendChild(opt);
         });
-        document.getElementById('map-controls').style.display = 'none';
     } else {
         if (typeof REGIONS_DB !== 'undefined') {
             REGIONS_DB.forEach(r => {
@@ -252,8 +379,6 @@ function populateRegionSelect() {
                 if(r.id === currentRegId) opt.selected = true;
                 sel.appendChild(opt);
             });
-        } else {
-            const opt = document.createElement('option'); opt.text = "Dex Padrão"; sel.appendChild(opt);
         }
     }
 }
@@ -263,7 +388,7 @@ function changeRegion() {
     if(!sel.value) return;
     
     currentRegId = sel.value;
-    localStorage.setItem('last_reg', currentRegId);
+    save(); // Salva estado
 
     const isMapMode = document.getElementById('view-map').classList.contains('active');
     
@@ -278,13 +403,11 @@ function changeRegion() {
 }
 
 function setTab(mode) {
-    // UI Updates
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`view-${mode}`).classList.add('active');
     event.target.classList.add('active');
     
-    // Lógica Inteligente de Troca
     ensureValidId(mode);
     populateRegionSelect();
     
@@ -298,7 +421,34 @@ function setTab(mode) {
 }
 
 // ==========================================
-// 5. MAPAS (Lógica Ironmon)
+// 8. PESQUISA
+// ==========================================
+function searchPokemon(event) {
+    if (event.key === 'Enter') executeSearch();
+}
+
+function executeSearch() {
+    const input = document.getElementById('poke-search');
+    const term = input.value.trim().toLowerCase();
+    
+    if (!term) return;
+
+    const found = dataSource.find(p => 
+        p.name.toLowerCase() === term || 
+        p.id.toString() === term
+    );
+
+    if (found) {
+        openModal(found); 
+        input.value = ''; 
+        input.blur(); 
+    } else {
+        alert("Pokémon não encontrado na base de dados (Verifique se o nome está em inglês).");
+    }
+}
+
+// ==========================================
+// 9. MAPAS (Lógica Ironmon)
 // ==========================================
 function loadMapAssets() {
     const config = MAP_CONFIG[currentRegId];
@@ -370,7 +520,7 @@ function draw() {
         });
     }
 
-    if (db.drawings[currentRegId]) {
+    if (db.drawings && db.drawings[currentRegId]) {
         db.drawings[currentRegId].forEach(d => {
             ctx.beginPath(); ctx.strokeStyle = d.color; ctx.lineWidth = d.width / view.scale;
             if (d.points.length) { ctx.moveTo(d.points[0].x, d.points[0].y); d.points.forEach(p => ctx.lineTo(p.x, p.y)); }
@@ -383,7 +533,7 @@ function draw() {
         ctx.moveTo(currentPath[0].x, currentPath[0].y); currentPath.forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
     }
 
-    if(db.teleports[currentRegId]) {
+    if(db.teleports && db.teleports[currentRegId]) {
         db.teleports[currentRegId].forEach(t => {
             const size = 20 / view.scale;
             ctx.beginPath(); ctx.arc(t.x, t.y, size, 0, Math.PI*2); ctx.fillStyle = 'rgba(0,188,212,0.8)'; ctx.fill();
@@ -433,7 +583,7 @@ function undo() { if(db.drawings[currentRegId]?.length){ db.drawings[currentRegI
 function clearMap() { if(confirm("Limpar desenhos e marcas desta região?")){ db.drawings[currentRegId]=[]; db.teleports[currentRegId]=[]; save(); draw(); } }
 
 // ==========================================
-// 7. LÓGICA DA POKEDEX
+// 10. DEX & DETALHES
 // ==========================================
 function renderDex() {
     const grid = document.getElementById('grid');
@@ -470,28 +620,19 @@ function renderDex() {
     updateStats();
 }
 
-function toggleCapture(id, el) {
-    if(!db.captured[currentRegId]) db.captured[currentRegId] = [];
-    const list = db.captured[currentRegId];
-    const idx = list.indexOf(id);
-    if (idx > -1) { list.splice(idx, 1); el.classList.remove('captured'); } 
-    else { list.push(id); el.classList.add('captured'); }
-    save(); updateStats();
+function openModal(data) {
+    let pokemon = data;
+    if (typeof data === 'number') {
+        pokemon = dataSource.find(p => p.id === data);
+    }
+    if(pokemon) renderModalContent(pokemon);
 }
 
-function updateStats() {
-    if(typeof REGIONS_DB === 'undefined') return;
-    const config = REGIONS_DB.find(r => r.id === currentRegId);
-    if(!config) return;
-    const total = config.end - config.start + 1;
-    const c = db.captured[currentRegId]?.length || 0;
-    const p = Math.floor((c / total) * 100);
-    document.getElementById('stats').innerText = `${c} / ${total} (${p}%)`;
+function openDetails(id) {
+    const data = dataSource.find(p => p.id === id);
+    if(data) renderModalContent(data);
 }
 
-// ==========================================
-// 8. DETALHES COMPLETOS (Restaurado com Lógica de Nível/Evolução)
-// ==========================================
 function getStatValue(stats, keyName, index) {
     if (!stats) return 0;
     if (Array.isArray(stats)) {
@@ -502,15 +643,13 @@ function getStatValue(stats, keyName, index) {
     return stats[keyName] || 0;
 }
 
-function openDetails(id) {
+function renderModalContent(data) {
     const modal = document.getElementById('modal-overlay');
     const body = document.getElementById('modal-body');
     modal.style.display = 'flex';
     
     try {
-        const data = dataSource.find(p => p.id === id);
-        if (!data) throw new Error("Pokémon não encontrado.");
-
+        const id = data.id;
         const imgUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/${id}.png`;
         const typeColors = (typeof TYPE_COLORS !== 'undefined') ? TYPE_COLORS : {};
         const typesHtml = (data.types || []).map(t => `<span class="type-badge" style="background:${typeColors[t]||'#555'}">${t}</span>`).join('');
@@ -520,17 +659,15 @@ function openDetails(id) {
         const labels = ['HP', 'ATK', 'DEF', 'SP.A', 'SP.D', 'SPD'];
         let statsHtml = "";
         let s = data.stats;
+        
         const values = [getStatValue(s,'hp',0), getStatValue(s,'atk',1), getStatValue(s,'def',2), getStatValue(s,'spa',3), getStatValue(s,'spd',4), getStatValue(s,'spe',5)];
         
-        // Treino e Natureza
+        // Treino
         let atk = values[1], def = values[2], spa = values[3], spd = values[4], spe = values[5];
         let isPhysical = atk >= spa;
         let isFast = spe >= 100;
         let isTank = def > 90 || spd > 90;
-        let natureText = "Neutro";
-        if (isFast) natureText = isPhysical ? "Jolly (+Spd -SpA)" : "Timid (+Spd -Atk)";
-        else if (isTank && spe < 60) natureText = (def >= spd) ? (isPhysical ? "Impish (+Def -SpA)" : "Bold (+Def -Atk)") : (isPhysical ? "Careful (+SpD -SpA)" : "Calm (+SpD -Atk)");
-        else natureText = isPhysical ? "Adamant (+Atk -SpA)" : "Modest (+SpA -Atk)";
+        let natureText = isFast ? (isPhysical ? "Jolly (+Spd -SpA)" : "Timid (+Spd -Atk)") : (isTank && spe < 60 ? (def >= spd ? (isPhysical ? "Impish (+Def -SpA)" : "Bold (+Def -Atk)") : (isPhysical ? "Careful (+SpD -SpA)" : "Calm (+SpD -Atk)")) : (isPhysical ? "Adamant (+Atk -SpA)" : "Modest (+SpA -Atk)"));
         let focusText = isFast ? `Speed + ${isPhysical?'Atk':'Sp.Atk'}` : `HP + ${isPhysical?'Atk':'Sp.Atk'}`;
 
         values.forEach((val, i) => {
@@ -538,39 +675,33 @@ function openDetails(id) {
             statsHtml += `<div class="stat-row"><span class="stat-label">${labels[i]}</span><span class="stat-val">${val}</span><div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${w}%"></div></div></div>`;
         });
 
-        // Moves - LÓGICA RESTAURADA (Filtra por nível de evolução)
+        // Moves
         const evoCap = data.evo || 100;
         let naturalMoves = [], tmMoves = [];
         if(data.moves && Array.isArray(data.moves)) {
-            // Filtra: Método level-up E Nível <= Cap de Evolução E Nível > 1
             naturalMoves = data.moves.filter(m => m.method === 'level-up' && m.level <= evoCap && m.level > 1).sort((a,b)=>a.level-b.level).slice(-6);
             tmMoves = data.moves.filter(m => m.method === 'machine').slice(0, 10);
         }
-
         const naturalHtml = naturalMoves.length ? naturalMoves.map(m => `<span class="move-tag natural">${m.name} <span class="level-info">Lv.${m.level}</span></span>`).join('') : '<span style="color:#777">Nenhum</span>';
         const tmHtml = tmMoves.length ? tmMoves.map(m => `<span class="move-tag tm">${m.name} <span class="level-info">TM</span></span>`).join('') : '<span style="color:#777">Nenhum</span>';
 
-        // Build Recomendada (Preenche 4 slots)
+        // Build
         let build = [];
         let allMoves = [...naturalMoves, ...tmMoves]; 
         const bestMoves = ['flamethrower','fire-blast','surf','hydro-pump','thunderbolt','ice-beam','earthquake','psychic','shadow-ball','dragon-claw','crunch','sludge-bomb','leaf-blade','energy-ball','moonblast','close-combat','return','body-slam','fly','strength','slash','bite','ember','water-gun','thundershock','vinewhip','confusion','rock-slide','brick-break','dig','aerial-ace'];
 
-        // 1. STABs Fortes
         (data.types || []).forEach(t => {
             let found = allMoves.find(m => bestMoves.includes(m.name) && !build.some(b=>b.name===m.name));
             if(found) build.push({...found, type:'stab'});
         });
-        // 2. Cobertura (se tiver espaço)
         if(build.length < 4) {
             let covers = allMoves.filter(m => bestMoves.includes(m.name) && !build.some(b=>b.name===m.name));
             for(let c of covers) { if(build.length >= 4) break; build.push({...c, type:'cover'}); }
         }
-        // 3. Preenchimento com ataques naturais mais fortes (últimos aprendidos)
         if(build.length < 4) {
             let fillers = naturalMoves.slice().reverse().filter(m => !build.some(b=>b.name===m.name));
             for(let f of fillers) { if(build.length >= 4) break; build.push({...f, type:'stab'}); }
         }
-
         const buildHtml = build.map(m => `<div class="build-slot ${m.type}">${m.name}</div>`).join('');
         const notes = db.notes[id] || "";
 
@@ -615,8 +746,32 @@ function openDetails(id) {
     }
 }
 
-function saveNote(id) { db.notes[id] = document.getElementById(`notes-${id}`).value; save(); alert("Salvo!"); }
+function toggleCapture(id, el) {
+    if(!db.captured[currentRegId]) db.captured[currentRegId] = [];
+    const list = db.captured[currentRegId];
+    const idx = list.indexOf(id);
+    if (idx > -1) { list.splice(idx, 1); el.classList.remove('captured'); } 
+    else { list.push(id); el.classList.add('captured'); }
+    save(); updateStats();
+}
+
+function updateStats() {
+    if(typeof REGIONS_DB === 'undefined') return;
+    const config = REGIONS_DB.find(r => r.id === currentRegId);
+    if(!config) return;
+    const total = config.end - config.start + 1;
+    const c = db.captured[currentRegId]?.length || 0;
+    const p = Math.floor((c / total) * 100);
+    document.getElementById('stats').innerText = `${c} / ${total} (${p}%)`;
+}
+
+function saveNote(id) { 
+    if(!db.notes) db.notes = {};
+    db.notes[id] = document.getElementById(`notes-${id}`).value; 
+    save(); 
+    alert("Salvo!"); 
+}
+
 function closeModal(e) { if(!e || e.target.id === 'modal-overlay' || e.target.classList.contains('close-modal')) document.getElementById('modal-overlay').style.display = 'none'; }
-function save() { localStorage.setItem('poke_db_ultimate', JSON.stringify(db)); }
 function exportData() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db)); a.download = "backup.json"; a.click(); }
 function importData(inp) { const f = inp.files[0]; if(!f) return; const r = new FileReader(); r.onload = e => { try { db = JSON.parse(e.target.result); save(); location.reload(); } catch(e){ alert("Erro ao importar."); } }; r.readAsText(f); }
