@@ -150,6 +150,28 @@
 
     </div> 
 
+    <div id="ai-chat-widget">
+        <button id="chat-toggle-btn" onclick="toggleChat()">
+            🤖 PokéChat
+        </button>
+        
+        <div id="chat-container" class="hidden">
+            <div class="chat-header">
+                <h3>Professor Pokémon</h3>
+                <button onclick="toggleChat()">✖</button>
+            </div>
+            <div id="chat-messages">
+                <div class="message bot">
+                    Olá! Sou sua IA assistente. Pergunte sobre stats, ataques ou evoluções de qualquer Pokémon!
+                </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="user-input" placeholder="Ex: Stats do Bulbasaur..." onkeypress="handleEnter(event)">
+                <button onclick="sendMessage()">➤</button>
+            </div>
+        </div>
+    </div>
+
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>

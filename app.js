@@ -787,6 +787,123 @@ function saveNote(id) {
     alert("Salvo!"); 
 }
 
+/* ========================
+   5. CHAT IA (GEMINI)
+   ======================== */
+
+// ⚠️ SUBSTITUA PELA SUA CHAVE DE API DO GOOGLE GEMINI
+const GEMINI_API_KEY = "AIzaSyByiEXRN5MAnIXTzzS97JEsdcQaV9pRCmM"; 
+
+function toggleChat() {
+    const container = document.getElementById('chat-container');
+    container.classList.toggle('hidden');
+    if (!container.classList.contains('hidden')) {
+        document.getElementById('user-input').focus();
+    }
+}
+
+function handleEnter(e) {
+    if (e.key === 'Enter') sendMessage();
+}
+
+// 1. Função de Enviar Mensagem (Simplificada)
+async function sendMessage() {
+    const input = document.getElementById('user-input');
+    const message = input.value.trim();
+    if (!message) return;
+
+    // Mostra mensagem do usuário
+    addMessage(message, 'user');
+    input.value = '';
+    input.disabled = true;
+
+    // Mostra "Pensando..."
+    addMessage("Pensando...", 'bot', true);
+    
+    try {
+        // AGORA CHAMAMOS A API DIRETO, SEM BUSCAR DADOS LOCAIS ANTES
+        const response = await callGeminiAPI(message);
+        
+        removeTempMessage();
+        addMessage(response, 'bot');
+    } catch (error) {
+        removeTempMessage();
+        addMessage("Erro ao conectar com a IA.", 'bot');
+        console.error(error);
+    }
+    
+    input.disabled = false;
+    input.focus();
+}
+
+function addMessage(text, sender, isTemp = false) {
+    const div = document.createElement('div');
+    div.className = `message ${sender} ${isTemp ? 'temp-msg' : ''}`;
+    
+    // Converte quebras de linha em <br> e formata negrito básico (**texto**)
+    let formatted = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); 
+    formatted = formatted.replace(/\n/g, '<br>');
+    
+    div.innerHTML = formatted;
+    
+    const container = document.getElementById('chat-messages');
+    container.appendChild(div);
+    container.scrollTop = container.scrollHeight;
+}
+
+function removeTempMessage() {
+    const temp = document.querySelector('.temp-msg');
+    if(temp) temp.remove();
+}
+
+// Função atualizada com Prompt mais flexível
+async function callGeminiAPI(userMsg, contextData) {
+    // CORREÇÃO: Mudamos para 'gemini-pro' que é o modelo mais compatível
+    const modelName = "gemini-2.5-flash"; 
+    
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
+    
+    let systemPrompt = `
+    Você é o 'Professor pokémon', um especialista em Pokémons.
+  Diretrizes:
+    1. Responda perguntas sobre Pokémon, ataques, evoluções, fraquezas, estratégias e etc mas somente sobre Pokémon.
+    2. Use todo o seu conhecimento da internet/base de dados sobre a franquia Pokémon.
+    3. Seja direto, resumido e responda sempre em Português (PT-BR).
+    4. Se perguntarem sobre stats, use os valores padrão dos jogos oficiais (Gen 3 a 9).
+    `;
+
+    const payload = {
+        contents: [{
+            parts: [{ text: `${systemPrompt}\n\nPergunta do usuário: "${userMsg}"` }]
+        }]
+    };
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await response.json();
+
+        if (!response.ok || data.error) {
+            console.error("Erro API:", data);
+            return `⚠️ Erro na API: ${data.error?.message || "Tente novamente."}`;
+        }
+
+        if (!data.candidates || !data.candidates[0]) {
+            return "Não consegui formular uma resposta.";
+        }
+
+        return data.candidates[0].content.parts[0].text;
+
+    } catch (error) {
+        console.error("Erro de Rede:", error);
+        throw error;
+    }
+}
+
 function closeModal(e) { if(!e || e.target.id === 'modal-overlay' || e.target.classList.contains('close-modal')) document.getElementById('modal-overlay').style.display = 'none'; }
 function exportData() { const a = document.createElement('a'); a.href = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(db)); a.download = "backup.json"; a.click(); }
 function importData(inp) { const f = inp.files[0]; if(!f) return; const r = new FileReader(); r.onload = e => { try { db = JSON.parse(e.target.result); save(); location.reload(); } catch(e){ alert("Erro ao importar."); } }; r.readAsText(f); }
