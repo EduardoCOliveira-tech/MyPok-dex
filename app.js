@@ -792,7 +792,7 @@ function saveNote(id) {
    ======================== */
 
 // ⚠️ SUBSTITUA PELA SUA CHAVE DE API DO GOOGLE GEMINI
-const GEMINI_API_KEY = "AIzaSyByiEXRN5MAnIXTzzS97JEsdcQaV9pRCmM"; 
+const GEMINI_API_KEY = "AIzaSyDuzQZyURjBIELlNn989UIwgzy5h8shNpE"; 
 
 function toggleChat() {
     const container = document.getElementById('chat-container');
