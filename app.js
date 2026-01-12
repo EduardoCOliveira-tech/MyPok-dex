@@ -808,24 +808,25 @@ async function sendMessage() {
     const message = input.value.trim();
     if (!message) return;
 
-    // 1. Mostra a mensagem do usuário
+    // 1. Interface
     addMessage(message, 'user');
     input.value = '';
     input.disabled = true;
-    addMessage("Consultando PokéDex...", 'bot', true);
+    addMessage("Consultando o Professor...", 'bot', true);
 
-    // 2. Busca dados locais do Pokémon (RAG)
-    const contextData = getContextFromDB(message);
+    // --- MUDANÇA AQUI: DESLIGAMOS O ENVIO DE DADOS ---
+    // Antes: const contextData = getContextFromDB(message);
+    // Agora: Enviamos null para a IA usar o cérebro dela
+    const contextData = null; 
 
     try {
-        // 3. Chama a função que conecta na Vercel
         const response = await callGeminiAPI(message, contextData);
         
         removeTempMessage();
         addMessage(response, 'bot');
     } catch (error) {
         removeTempMessage();
-        addMessage("⚠️ Erro de comunicação com o servidor.", 'bot');
+        addMessage("⚠️ Erro de comunicação.", 'bot');
         console.error(error);
     }
     
