@@ -1,45 +1,39 @@
 // api/chat.js
-// Esse código roda no servidor da Vercel, ninguém vê!
 
 export default async function handler(req, res) {
-    // 1. Configurações de Segurança (CORS)
-    // Permite que apenas o seu site acesse essa função
+    // CORS
     res.setHeader('Access-Control-Allow-Credentials', true);
-    res.setHeader('Access-Control-Allow-Origin', '*'); // Depois troque '*' pelo seu domínio para mais segurança
+    res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
     res.setHeader(
         'Access-Control-Allow-Headers',
         'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version'
     );
 
-    // Responde rápido para requisições de verificação (preflight)
     if (req.method === 'OPTIONS') {
         res.status(200).end();
         return;
     }
 
-    // 2. Pega a mensagem que veio do seu site
-    const { message, context } = req.body;
-    
-    // A chave fica escondida nas variáveis de ambiente do servidor
     const apiKey = process.env.GEMINI_API_KEY;
-
     if (!apiKey) {
-        return res.status(500).json({ error: 'Chave de API não configurada no servidor.' });
+        return res.status(500).json({ error: 'Chave de API não configurada na Vercel.' });
     }
 
-    // 3. Monta o pedido para o Google
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${apiKey}`;
+    const { message, context } = req.body || {};
+
+    // TENTATIVA 1: Vamos tentar o modelo padrão atual (Flash)
+    // Se falhar, o código lá embaixo vai nos contar o motivo
+    const modelName = "gemini-1.5-flash"; 
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
     
     let systemPrompt = `
-    Você é o 'Professor Pokémon'.
-    Diretrizes:
-    1. Responda em Português (PT-BR).
-    2. Use os dados técnicos fornecidos abaixo como VERDADE ABSOLUTA.
+    Você é o 'Assistente Ironmon'.
+    Responda em Português (PT-BR), seja curto e use os dados abaixo como verdade absoluta.
     `;
 
     if (context) {
-        systemPrompt += `\nDADOS TÉCNICOS: ${JSON.stringify(context)}\n`;
+        systemPrompt += `\nDADOS TÉCNICOS:\n${JSON.stringify(context)}\n`;
     }
 
     const payload = {
@@ -57,15 +51,38 @@ export default async function handler(req, res) {
 
         const data = await response.json();
         
+        // --- AQUI ESTÁ A MÁGICA DE DIAGNÓSTICO ---
         if (!response.ok) {
+            console.error("Erro no modelo:", data);
+
+            // Se o erro for "Model not found", vamos listar o que você TEM acesso
+            if (data.error && data.error.message.includes("not found")) {
+                try {
+                    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+                    const listResp = await fetch(listUrl);
+                    const listData = await listResp.json();
+                    
+                    // Filtra apenas os modelos que geram texto
+                    const availableModels = listData.models
+                        ?.filter(m => m.supportedGenerationMethods.includes("generateContent"))
+                        .map(m => m.name.replace("models/", ""));
+                        
+                    return res.status(500).json({ 
+                        error: `O modelo '${modelName}' falhou. SUAS OPÇÕES VÁLIDAS SÃO: ${availableModels?.join(', ') || 'Nenhuma'}` 
+                    });
+                } catch (e) {
+                    return res.status(500).json({ error: `Erro original: ${data.error.message}. (Falha ao listar modelos alternativos)` });
+                }
+            }
+
             return res.status(500).json({ error: data.error?.message || 'Erro na API do Google' });
         }
 
-        // Devolve só a resposta do texto para o seu site
         const text = data.candidates[0].content.parts[0].text;
         res.status(200).json({ reply: text });
 
     } catch (error) {
-        res.status(500).json({ error: 'Erro interno no servidor Vercel' });
+        console.error(error);
+        res.status(500).json({ error: 'Erro interno no servidor Vercel.' });
     }
 }
