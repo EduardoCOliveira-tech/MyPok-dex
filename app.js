@@ -788,7 +788,7 @@ function saveNote(id) {
 }
 
 /* ========================
-   5. CHAT IA (GEMINI)
+   CHAT IA (Via Servidor Vercel - FINAL)
    ======================== */
 
 function toggleChat() {
@@ -803,29 +803,29 @@ function handleEnter(e) {
     if (e.key === 'Enter') sendMessage();
 }
 
-// 1. Função de Enviar Mensagem (Simplificada)
 async function sendMessage() {
     const input = document.getElementById('user-input');
     const message = input.value.trim();
     if (!message) return;
 
-    // Mostra mensagem do usuário
+    // 1. Mostra a mensagem do usuário
     addMessage(message, 'user');
     input.value = '';
     input.disabled = true;
+    addMessage("Consultando PokéDex...", 'bot', true);
 
-    // Mostra "Pensando..."
-    addMessage("Pensando...", 'bot', true);
-    
+    // 2. Busca dados locais do Pokémon (RAG)
+    const contextData = getContextFromDB(message);
+
     try {
-        // AGORA CHAMAMOS A API DIRETO, SEM BUSCAR DADOS LOCAIS ANTES
-        const response = await callGeminiAPI(message);
+        // 3. Chama a função que conecta na Vercel
+        const response = await callGeminiAPI(message, contextData);
         
         removeTempMessage();
         addMessage(response, 'bot');
     } catch (error) {
         removeTempMessage();
-        addMessage("Erro ao conectar com a IA.", 'bot');
+        addMessage("⚠️ Erro de comunicação com o servidor.", 'bot');
         console.error(error);
     }
     
@@ -833,11 +833,61 @@ async function sendMessage() {
     input.focus();
 }
 
+// Função Auxiliar: Busca dados no seu data.js
+function getContextFromDB(userMsg) {
+    if (typeof POKEMON_DATA === 'undefined') return null;
+    const lowerMsg = userMsg.toLowerCase();
+    
+    // Procura o Pokémon no texto
+    const foundPoke = POKEMON_DATA.find(p => lowerMsg.includes(p.name.toLowerCase()));
+
+    if (foundPoke) {
+        return {
+            nome: foundPoke.name,
+            tipos: foundPoke.types,
+            stats_base: foundPoke.stats,
+            ataques_amostra: foundPoke.moves.slice(0, 30), // Limita para não pesar
+            id: foundPoke.id
+        };
+    }
+    return null;
+}
+
+// A FUNÇÃO QUE DAVA ERRO AGORA ESTÁ AQUI DEFINIDA:
+async function callGeminiAPI(userMsg, contextData) {
+    // Chama o seu arquivo criado na pasta /api/chat.js
+    const url = '/api/chat';
+
+    try {
+        const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                message: userMsg,
+                context: contextData 
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            console.error("Erro Vercel:", data);
+            throw new Error(data.error || "Erro na API");
+        }
+
+        return data.reply;
+
+    } catch (error) {
+        console.error("Falha no fetch:", error);
+        return "Desculpe, não consegui conectar ao servidor da IA.";
+    }
+}
+
 function addMessage(text, sender, isTemp = false) {
     const div = document.createElement('div');
     div.className = `message ${sender} ${isTemp ? 'temp-msg' : ''}`;
     
-    // Converte quebras de linha em <br> e formata negrito básico (**texto**)
+    // Formatação básica (Negrito e Quebra de linha)
     let formatted = text.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'); 
     formatted = formatted.replace(/\n/g, '<br>');
     

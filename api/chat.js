@@ -32,7 +32,7 @@ export default async function handler(req, res) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     let systemPrompt = `
-    Você é o 'Assistente Ironmon'.
+    Você é o 'Professor Pokémon'.
     Diretrizes:
     1. Responda em Português (PT-BR).
     2. Use os dados técnicos fornecidos abaixo como VERDADE ABSOLUTA.
