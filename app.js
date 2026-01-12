@@ -791,9 +791,6 @@ function saveNote(id) {
    5. CHAT IA (GEMINI)
    ======================== */
 
-// ⚠️ SUBSTITUA PELA SUA CHAVE DE API DO GOOGLE GEMINI
-const GEMINI_API_KEY = "AIzaSyCN4NlK3XrlNSdydjeTDTLPGpFJBM0zC9U"; 
-
 function toggleChat() {
     const container = document.getElementById('chat-container');
     container.classList.toggle('hidden');
@@ -857,50 +854,32 @@ function removeTempMessage() {
 }
 
 // Função atualizada com Prompt mais flexível
-async function callGeminiAPI(userMsg, contextData) {
-    // CORREÇÃO: Mudamos para 'gemini-pro' que é o modelo mais compatível
-    const modelName = "gemini-2.5-flash"; 
-    
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${GEMINI_API_KEY}`;
-    
-    let systemPrompt = `
-    Você é o 'Professor pokémon', um especialista em Pokémons.
-  Diretrizes:
-    1. Responda perguntas sobre Pokémon, ataques, evoluções, fraquezas, estratégias e etc mas somente sobre Pokémon.
-    2. Use todo o seu conhecimento da internet/base de dados sobre a franquia Pokémon.
-    3. Seja direto, resumido e responda sempre em Português (PT-BR).
-    4. Se perguntarem sobre stats, use os valores padrão dos jogos oficiais (Gen 3 a 9).
-    `;
-
-    const payload = {
-        contents: [{
-            parts: [{ text: `${systemPrompt}\n\nPergunta do usuário: "${userMsg}"` }]
-        }]
-    };
+async function callGeminiWithContext(userMsg, contextData) {
+    // Agora chamamos nosso próprio arquivo na pasta /api
+    // O navegador vai completar automaticamente para https://seu-site.vercel.app/api/chat
+    const url = '/api/chat';
 
     try {
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                message: userMsg,
+                context: contextData // Enviamos os dados filtrados do seu data.js
+            })
         });
 
         const data = await response.json();
 
-        if (!response.ok || data.error) {
-            console.error("Erro API:", data);
-            return `⚠️ Erro na API: ${data.error?.message || "Tente novamente."}`;
+        if (data.error) {
+            throw new Error(data.error);
         }
 
-        if (!data.candidates || !data.candidates[0]) {
-            return "Não consegui formular uma resposta.";
-        }
-
-        return data.candidates[0].content.parts[0].text;
+        return data.reply;
 
     } catch (error) {
-        console.error("Erro de Rede:", error);
-        throw error;
+        console.error("Erro:", error);
+        return "⚠️ Erro ao comunicar com o servidor. Tente novamente.";
     }
 }
 
