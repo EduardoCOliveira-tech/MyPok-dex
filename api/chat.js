@@ -28,8 +28,12 @@ export default async function handler(req, res) {
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
     
     let systemPrompt = `
-    Você é o 'Assistente Ironmon'.
-    Responda em Português (PT-BR), seja curto e use os dados abaixo como verdade absoluta.
+    Você é o 'Professor pokémon', um especialista em Pokémons.
+    Diretrizes:
+    1. Responda perguntas sobre Pokémon, ataques, evoluções, fraquezas, itens e como encontra-los, estratégias e etc mas somente sobre Pokémon.
+    2. Use todo o seu conhecimento da internet/base de dados sobre a franquia Pokémon.
+    3. Seja direto, resumido e responda sempre na lingua que a pessoa fez a pergunta.
+    4. Se perguntarem sobre stats, use os valores padrão dos jogos oficiais (Gen 3 a 9).
     `;
 
     if (context) {
