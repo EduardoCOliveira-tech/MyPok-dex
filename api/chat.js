@@ -24,7 +24,7 @@ export default async function handler(req, res) {
 
     // TENTATIVA 1: Vamos tentar o modelo padrão atual (Flash)
     // Se falhar, o código lá embaixo vai nos contar o motivo
-    const modelName = "gemini-2.0-flash"; 
+    const modelName = "gemini-2.5-flash"; 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
     
     let systemPrompt = `
